@@ -310,9 +310,13 @@ static int _algorithm_tournament(struct oshmem_group_t *group,
          Usage of this hack does not give performance improvement but
          it is expected that shmem_long_cswap() will make it faster.
        */
-            do {
+            for (;;) {
                 MCA_SPML_CALL(get(oshmem_ctx_default, (void*)pSync, sizeof(value), (void*)&value, peer_pe));
-            } while (value != my_id);
+                if (value == my_id) {
+                    break;
+                }
+                opal_progress();
+            }
 
             SCOLL_VERBOSE(14,
                           "[#%d] round = %d send data to #%d",
@@ -488,9 +492,13 @@ static int _algorithm_recursive_doubling(struct oshmem_group_t *group,
          Usage of this hack does not give performance improvement but
          it is expected that shmem_long_cswap() will make it faster.
        */
-            do {
+            for (;;) {
                 MCA_SPML_CALL(get(oshmem_ctx_default, (void*)pSync, sizeof(value), (void*)&value, peer_pe));
-            } while (value != (round - 1));
+                if (value == (round - 1)) {
+                    break;
+                }
+                opal_progress();
+            }
 
             SCOLL_VERBOSE(14,
                           "[#%d] round = %d send data to #%d",
