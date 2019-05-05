@@ -44,5 +44,5 @@ mca_pml_ucx_la_LDFLAGS = -module -avoid-version $(pml_ucx_LDFLAGS)
 noinst_LTLIBRARIES = $(component_noinst)
 libmca_pml_ucx_la_SOURCES = $(local_sources)
 libmca_pml_ucx_la_LIBADD = $(pml_ucx_LIBS)
-libmca_pml_ucx_la_LDFLAGS = -module -avoid-version $(pml_ucx_LDFLAGS)
+libmca_pml_ucx_la_LDFLAGS = -module -avoid-version $(pml_ucx_LDFLAGS) --no-rpath
 
