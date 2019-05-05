@@ -40,5 +40,5 @@ mca_atomic_ucx_la_LDFLAGS = -module -avoid-version $(atomic_ucx_LDFLAGS)
 
 noinst_LTLIBRARIES = $(component_noinst)
 libmca_atomic_ucx_la_SOURCES =$(ucx_sources)
-libmca_atomic_ucx_la_LDFLAGS = -module -avoid-version $(atomic_ucx_LDFLAGS)
+libmca_atomic_ucx_la_LDFLAGS = -module -avoid-version $(atomic_ucx_LDFLAGS) --no-rpath
 
