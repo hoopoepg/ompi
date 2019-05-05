@@ -77,13 +77,13 @@ module_finalize(void);
 /* sysv shmem module */
 mca_sshmem_sysv_module_t mca_sshmem_sysv_module = {
     /* super */
-    {
-        module_init,
-        segment_create,
-        segment_attach,
-        segment_detach,
-        segment_unlink,
-        module_finalize
+    .super = {
+        .module_init     = module_init,
+        .segment_create  = segment_create,
+        .segment_attach  = segment_attach,
+        .segment_detach  = segment_detach,
+        .unlink          = segment_unlink,
+        .module_finalize = module_finalize
     }
 };
 

@@ -21,21 +21,22 @@
 
 mca_memheap_ptmalloc_module_t memheap_ptmalloc = {
     {
-        &mca_memheap_ptmalloc_component,
-        mca_memheap_ptmalloc_finalize,
-        mca_memheap_ptmalloc_alloc,
-        mca_memheap_ptmalloc_align,
-        mca_memheap_ptmalloc_realloc,
-        mca_memheap_ptmalloc_free,
+        .memheap_component         = &mca_memheap_ptmalloc_component,
+        .memheap_finalize          = mca_memheap_ptmalloc_finalize,
+        .memheap_alloc             = mca_memheap_ptmalloc_alloc,
+        .memheap_alloc_with_hint   = mca_memheap_base_alloc_with_hint,
+        .memheap_memalign          = mca_memheap_ptmalloc_align,
+        .memheap_realloc           = mca_memheap_ptmalloc_realloc,
+        .memheap_free              = mca_memheap_ptmalloc_free,
 
-        mca_memheap_ptmalloc_alloc,
-        mca_memheap_ptmalloc_free,
+        .memheap_private_alloc     = mca_memheap_ptmalloc_alloc,
+        .memheap_private_free      = mca_memheap_ptmalloc_free,
 
-        mca_memheap_base_get_mkey,
-        mca_memheap_base_is_symmetric_addr,
-        mca_memheap_modex_recv_all,
+        .memheap_get_local_mkey    = mca_memheap_base_get_mkey,
+        .memheap_is_symmetric_addr = mca_memheap_base_is_symmetric_addr,
+        .memheap_get_all_mkeys     = mca_memheap_modex_recv_all,
 
-        0
+        .memheap_size              = 0
     },
     100   /* priority */
 };

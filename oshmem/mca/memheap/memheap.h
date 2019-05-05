@@ -42,6 +42,8 @@ typedef int (*mca_memheap_base_component_init_fn_t)(memheap_context_t *);
  */
 typedef int (*mca_memheap_base_module_alloc_fn_t)(size_t, void**);
 
+typedef int (*mca_memheap_base_module_alloc_with_hint_fn_t)(size_t, long, void**);
+
 typedef int (*mca_memheap_base_module_memalign_fn_t)(size_t align,
                                                      size_t size,
                                                      void**);
@@ -91,6 +93,7 @@ struct mca_memheap_base_module_t {
     mca_memheap_base_component_t                   *memheap_component;  /** Memory Heap Management Componenet */
     mca_memheap_base_module_finalize_fn_t           memheap_finalize;
     mca_memheap_base_module_alloc_fn_t              memheap_alloc;
+    mca_memheap_base_module_alloc_with_hint_fn_t    memheap_alloc_with_hint;
     mca_memheap_base_module_memalign_fn_t           memheap_memalign;
     mca_memheap_base_module_realloc_fn_t            memheap_realloc;
     mca_memheap_base_module_free_fn_t               memheap_free;

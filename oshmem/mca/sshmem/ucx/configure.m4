@@ -22,6 +22,11 @@ AC_DEFUN([MCA_oshmem_sshmem_ucx_CONFIG],[
           [$1],
           [$2])
 
+    AC_CHECK_DECLS([ucp_context_find_tl_md], [], [],
+                   [[#include <ucp/core/ucp_resource.h>]])
+
+    AC_CHECK_DECLS([uct_ib_md_alloc_dm], [], [],
+                   [[#include <uct/ib/base/ib_alloc.h>]])
 
     # substitute in the things needed to build ucx 
     AC_SUBST([sshmem_ucx_CFLAGS])
@@ -29,4 +34,3 @@ AC_DEFUN([MCA_oshmem_sshmem_ucx_CONFIG],[
     AC_SUBST([sshmem_ucx_LDFLAGS])
     AC_SUBST([sshmem_ucx_LIBS])
 ])dnl
-

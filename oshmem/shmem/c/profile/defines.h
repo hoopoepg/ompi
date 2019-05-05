@@ -49,6 +49,7 @@
  * Symmetric heap routines
  */
 #define shmem_malloc                 pshmem_malloc
+#define shmem_malloc_with_hint       pshmem_malloc_with_hint
 #define shmem_calloc                 pshmem_calloc
 #define shmem_align                  pshmem_align
 #define shmem_realloc                pshmem_realloc

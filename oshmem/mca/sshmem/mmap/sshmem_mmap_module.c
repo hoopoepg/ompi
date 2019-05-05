@@ -81,13 +81,13 @@ module_finalize(void);
  */
 mca_sshmem_mmap_module_t mca_sshmem_mmap_module = {
     /* super */
-    {
-        module_init,
-        segment_create,
-        segment_attach,
-        segment_detach,
-        segment_unlink,
-        module_finalize
+    .super = {
+        .module_init     = module_init,
+        .segment_create  = segment_create,
+        .segment_attach  = segment_attach,
+        .segment_detach  = segment_detach,
+        .unlink          = segment_unlink,
+        .module_finalize = module_finalize
     }
 };
 

@@ -86,6 +86,14 @@ mca_spml_ucx_ctx_t mca_spml_ucx_ctx_default = {
     .options    = 0
 };
 
+static void mca_spml_ucx_cache_mkey(mca_spml_ucx_ctx_t *ucx_ctx, sshmem_mkey_t *mkey, uint32_t segno, int dst_pe)
+{
+    ucp_peer_t *peer;
+
+    peer = &(ucx_ctx->ucp_peers[dst_pe]);
+    mkey_segment_init(&peer->mkeys[segno].super, mkey, segno);
+}
+
 int mca_spml_ucx_enable(bool enable)
 {
     SPML_UCX_VERBOSE(50, "*** ucx ENABLED ****");
@@ -268,7 +276,7 @@ int mca_spml_ucx_add_procs(ompi_proc_t** procs, size_t nprocs)
         OSHMEM_PROC_DATA(procs[i])->num_transports = 1;
         OSHMEM_PROC_DATA(procs[i])->transport_ids = spml_ucx_transport_ids;
 
-        for (j = 0; j < MCA_MEMHEAP_SEG_COUNT; j++) {
+        for (j = 0; j < MCA_MEMHEAP_MAX_SEGMENTS; j++) {
             mca_spml_ucx_ctx_default.ucp_peers[i].mkeys[j].key.rkey = NULL;
         }
 
@@ -480,8 +488,6 @@ int mca_spml_ucx_deregister(sshmem_mkey_t *mkeys)
 {
     spml_ucx_mkey_t   *ucx_mkey;
     map_segment_t *mem_seg;
-    int segno;
-    int my_pe = oshmem_my_proc_id();
 
     MCA_SPML_CALL(quiet(oshmem_ctx_default));
     if (!mkeys)
@@ -555,8 +561,6 @@ int mca_spml_ucx_ctx_create(long options, shmem_ctx_t *ctx)
     ucp_ep_params_t ep_params;
     size_t i, j, nprocs = oshmem_num_procs();
     ucs_status_t err;
-    int my_pe = oshmem_my_proc_id();
-    size_t len;
     spml_ucx_mkey_t *ucx_mkey;
     sshmem_mkey_t *mkey;
     int rc = OSHMEM_ERROR;
@@ -598,17 +602,19 @@ int mca_spml_ucx_ctx_create(long options, shmem_ctx_t *ctx)
             goto error2;
         }
 
-        for (j = 0; j < MCA_MEMHEAP_SEG_COUNT; j++) {
+        for (j = 0; j < MCA_MEMHEAP_MAX_SEGMENTS; j++) {
             mkey = &memheap_map->mem_segs[j].mkeys_cache[i][0];
             ucx_mkey = &ucx_ctx->ucp_peers[i].mkeys[j].key;
-            err = ucp_ep_rkey_unpack(ucx_ctx->ucp_peers[i].ucp_conn,
-                                     mkey->u.data,
-                                     &ucx_mkey->rkey);
-            if (UCS_OK != err) {
-                SPML_UCX_ERROR("failed to unpack rkey");
-                goto error2;
+            if (mkey->u.data) {
+                err = ucp_ep_rkey_unpack(ucx_ctx->ucp_peers[i].ucp_conn,
+                                         mkey->u.data,
+                                         &ucx_mkey->rkey);
+                if (UCS_OK != err) {
+                    SPML_UCX_ERROR("failed to unpack rkey");
+                    goto error2;
+                }
+                mca_spml_ucx_cache_mkey(ucx_ctx, mkey, j, i);
             }
-            mca_spml_ucx_cache_mkey(ucx_ctx, mkey, j, i);
         }
     }
 

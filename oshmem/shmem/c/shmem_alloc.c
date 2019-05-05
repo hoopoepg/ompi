@@ -11,6 +11,7 @@
 
 #include "oshmem/constants.h"
 #include "oshmem/include/shmem.h"
+#include "oshmem/include/shmemx.h"
 
 #include "oshmem/shmem/shmem_api_logger.h"
 
@@ -19,9 +20,10 @@
 
 #if OSHMEM_PROFILING
 #include "oshmem/include/pshmem.h"
-#pragma weak shmem_malloc = pshmem_malloc
-#pragma weak shmem_calloc = pshmem_calloc
-#pragma weak shmalloc = pshmalloc
+#pragma weak shmem_malloc           = pshmem_malloc
+#pragma weak shmem_malloc_with_hint = pshmem_malloc_with_hint
+#pragma weak shmem_calloc           = pshmem_calloc
+#pragma weak shmalloc               = pshmalloc
 #include "oshmem/shmem/c/profile/defines.h"
 #endif
 
@@ -58,6 +60,36 @@ static inline void* _shmalloc(size_t size)
     SHMEM_MUTEX_LOCK(shmem_internal_mutex_alloc);
 
     rc = MCA_MEMHEAP_CALL(alloc(size, &pBuff));
+
+    SHMEM_MUTEX_UNLOCK(shmem_internal_mutex_alloc);
+
+    if (OSHMEM_SUCCESS != rc) {
+        SHMEM_API_VERBOSE(10,
+                          "Allocation with shmalloc(size=%lu) failed.",
+                          (unsigned long)size);
+        return NULL ;
+    }
+#if OSHMEM_SPEC_COMPAT == 1
+    shmem_barrier_all();
+#endif
+    return pBuff;
+}
+
+void* shmem_malloc_with_hint(size_t size, long hint)
+{
+    int rc;
+    void* pBuff = NULL;
+
+    if (!hint) {
+        return _shmalloc(size);
+    }
+
+    RUNTIME_CHECK_INIT();
+    RUNTIME_CHECK_WITH_MEMHEAP_SIZE(size);
+
+    SHMEM_MUTEX_LOCK(shmem_internal_mutex_alloc);
+
+    rc = MCA_MEMHEAP_CALL(alloc_with_hint(size, hint, &pBuff));
 
     SHMEM_MUTEX_UNLOCK(shmem_internal_mutex_alloc);
 

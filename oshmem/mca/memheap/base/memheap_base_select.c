@@ -22,6 +22,12 @@
 #include "oshmem/mca/memheap/memheap.h"
 #include "oshmem/mca/memheap/base/base.h"
 #include "orte/mca/errmgr/errmgr.h"
+#include "oshmem/include/shmemx.h"
+
+
+mca_memheap_base_config_t mca_memheap_base_config = {
+    .atomic_heap_size = 0
+};
 
 mca_memheap_base_module_t mca_memheap = {0};
 
@@ -91,6 +97,19 @@ static size_t _memheap_size(void)
     return (size_t) memheap_align(oshmem_shmem_info_env.symmetric_heap_size);
 }
 
+static size_t _memheap_hint_size(long hint)
+{
+    switch(hint) {
+    case SHMEM_HINT_NONE:
+        return _memheap_size();
+    case SHMEM_HINT_DEVICE_NIC_MEM:
+        return mca_memheap_base_config.atomic_heap_size;
+    default:
+        return 0;
+    }
+    return (size_t) memheap_align(oshmem_shmem_info_env.symmetric_heap_size);
+}
+
 static memheap_context_t* _memheap_create(void)
 {
     int rc = OSHMEM_SUCCESS;
@@ -103,10 +122,22 @@ static memheap_context_t* _memheap_create(void)
                       (unsigned long long)user_size, MEMHEAP_BASE_MIN_SIZE);
         return NULL ;
     }
+
     /* Inititialize symmetric area */
     if (OSHMEM_SUCCESS == rc) {
         rc = mca_memheap_base_alloc_init(&mca_memheap_base_map,
                                          user_size + MEMHEAP_BASE_PRIVATE_SIZE);
+    }
+
+    /* Inititialize atomic symmetric area */
+    if (OSHMEM_SUCCESS == rc) {
+        rc = mca_memheap_base_hint_alloc_init(&mca_memheap_base_map,
+                                              _memheap_hint_size(SHMEM_HINT_DEVICE_NIC_MEM),
+                                              SHMEM_HINT_DEVICE_NIC_MEM);
+        if (rc == OSHMEM_ERR_NOT_IMPLEMENTED) {
+            /* do not treat NOT_IMPLEMENTED as error */
+            rc = OSHMEM_SUCCESS;
+        }
     }
 
     /* Inititialize static/global variables area */
