@@ -39,7 +39,7 @@ enum {
 /*
  * Symmetric heap routines
  */
-OSHMEM_DECLSPEC  void* shmem_malloc_with_hint(size_t size, long hint);
+OSHMEM_DECLSPEC  void* shmemx_malloc_with_hint(size_t size, long hint);
 
 /*
  * Elemental put routines
