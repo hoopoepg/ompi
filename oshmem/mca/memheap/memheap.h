@@ -139,6 +139,12 @@ typedef struct mca_memheap_base_module_t mca_memheap_base_module_t;
 #define MCA_MEMHEAP_CALL(a) mca_memheap.memheap_ ## a
 #endif
 
+struct memheap_custom_allocator {
+    mca_memheap_base_module_alloc_with_hint_fn_t memheap_alloc_with_hint;
+    mca_memheap_base_module_realloc_fn_t         memheap_realloc;
+    mca_memheap_base_module_free_fn_t            memheap_free;
+};
+
 OSHMEM_DECLSPEC extern mca_memheap_base_module_t mca_memheap;
 
 static inline int mca_memheap_base_mkey_is_shm(sshmem_mkey_t *mkey)

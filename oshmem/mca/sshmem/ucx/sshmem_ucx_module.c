@@ -169,7 +169,7 @@ segment_create(map_segment_t *ds_buf,
 }
 
 
-static mca_memheap_base_module_t sshmem_ucx_allocator = {
+static memheap_custom_allocator_t sshmem_ucx_allocator = {
     /* memheap interface to manage memory */
     .memheap_alloc_with_hint = sshmem_ucx_memheap_alloc_with_hint,
     .memheap_realloc         = sshmem_ucx_memheap_realloc,
@@ -307,6 +307,7 @@ segment_unlink(map_segment_t *ds_buf)
                         "segment_unlink() info=%p\n",
                          info);
     if (info) {
+        sshmem_ucx_shadow_destroy_allocator(info->ctx);
         uct_ib_md_release_device_mem(info->dev_mem);
     }
 #endif
@@ -339,155 +340,33 @@ static mca_sshmem_ucx_segment_info_t *sshmem_ucx_memheap_get_info(long hint)
     return NULL;
 }
 
-#define SSHMEM_UCX_MEMHEAP_FREE_ELEM (1 << 31)
 
-typedef struct sshmem_ucx_memheap_alloc_elem {
-    uint32_t flags;
-    uint32_t length;
-} sshmem_ucx_memheap_alloc_elem_t;
-
-typedef struct sshmem_ucx_memheap_allocator {
-    size_t                          length;
-    sshmem_ucx_memheap_alloc_elem_t elem[];
-} sshmem_ucx_memheap_allocator_t;
-
-
-static int sshmem_ucx_memheap_is_free(sshmem_ucx_memheap_alloc_elem_t *elem)
+static void *sshmem_ucx_memheap_offset2ptr(mca_sshmem_ucx_segment_info_t *info,
+                                           size_t offset)
 {
-    return elem->flags & SSHMEM_UCX_MEMHEAP_FREE_ELEM;
+    return (char*)info->segment->super.va_base + offset;
 }
 
-static void sshmem_ucx_memheap_set_elem(sshmem_ucx_memheap_alloc_elem_t *elem,
-                                        size_t length, uint32_t flags)
+static size_t sshmem_ucx_memheap_ptr2offset(mca_sshmem_ucx_segment_info_t *info,
+                                            void *ptr)
 {
-    elem->flags  = flags;
-    elem->length = length;
-}
-
-static void sshmem_ucx_memheap_clean_elem(sshmem_ucx_memheap_alloc_elem_t *elem)
-{
-    assert(elem->length);
-
-    elem->flags  = 0;
-    elem->length = 0;
-}
-
-static size_t sshmem_ucx_memheap_get_length(size_t size)
-{
-    sshmem_ucx_memheap_allocator_t *allocator = NULL;
-
-    return ucs_align_up(size, sizeof(allocator->elem[0])) / sizeof(allocator->elem[0]);
-}
-
-static sshmem_ucx_memheap_allocator_t *sshmem_ucx_memheap_create_allocator(size_t size)
-{
-    sshmem_ucx_memheap_allocator_t *allocator;
-    size_t length = sshmem_ucx_memheap_get_length(size);
-
-    allocator = malloc(sizeof(*allocator) + length * sizeof(allocator->elem[0]));
-    if (allocator) {
-        /* allocate data */
-        allocator->length = length;
-        memset(allocator->elem, 0, length * sizeof(allocator->elem[0]));
-
-        /* init data: set first element as free to whole buffer */
-        sshmem_ucx_memheap_set_elem(&allocator->elem[0], length, SSHMEM_UCX_MEMHEAP_FREE_ELEM);
-    }
-
-    return allocator;
-}
-
-static int
-sshmem_ucx_memheap_alloc_internal(size_t size,
-                                  mca_sshmem_ucx_segment_info_t *info,
-                                  void **ptr)
-{
-    sshmem_ucx_memheap_allocator_t *allocator = info->ctx;
-    size_t length = sshmem_ucx_memheap_get_length(size);
-    sshmem_ucx_memheap_alloc_elem_t *elem;
-
-    if (!size) {
-        return OSHMEM_SUCCESS;
-    }
-
-    for (elem = &allocator->elem[0]; elem < &allocator->elem[allocator->length];
-         elem += elem->length) {
-        if (sshmem_ucx_memheap_is_free(elem) &&
-            (elem->length >= length)) {
-            /* found suitable free element */
-            if (elem->length > length) {
-                /* create new 'free' element for tail of current buffer */
-                sshmem_ucx_memheap_set_elem(elem + length, elem->length - length,
-                                            SSHMEM_UCX_MEMHEAP_FREE_ELEM);
-            }
-
-            sshmem_ucx_memheap_set_elem(elem, length, 0);
-            *ptr = (char*)info->segment->super.va_base +
-                   ((char*)&allocator->elem[0] - (char*)elem);
-            assert(*ptr >= info->segment->super.va_base);
-            assert(*ptr < info->segment->super.va_end);
-            return OSHMEM_SUCCESS;
-        }
-    }
-
-    return OSHMEM_ERR_OUT_OF_RESOURCE;
-}
-
-
-static sshmem_ucx_memheap_alloc_elem_t
-*sshmem_ucx_memheap_get_elem(mca_sshmem_ucx_segment_info_t *info, void *ptr)
-{
-    sshmem_ucx_memheap_allocator_t *allocator = info->ctx;
-
-    assert(ptr >= info->segment->super.va_base);
-    assert(ptr < info->segment->super.va_end);
-
-    return (sshmem_ucx_memheap_alloc_elem_t*)((char*)ptr - (char*)info->segment->super.va_base +
-                                              (char*)&allocator->elem[0]);
-}
-
-static void sshmem_ucx_memheap_merge_blocks(sshmem_ucx_memheap_allocator_t *allocator)
-{
-    sshmem_ucx_memheap_alloc_elem_t *elem;
-    sshmem_ucx_memheap_alloc_elem_t *elem_clean;
-
-    /* merge free elements */
-    elem = allocator->elem;
-    while ((elem < &allocator->elem[allocator->length]) &&
-           (elem->length < allocator->length)) {
-        if (sshmem_ucx_memheap_is_free(elem) &&
-            sshmem_ucx_memheap_is_free(elem + elem->length)) {
-            /* current & next elements are free, should be merged */
-            elem_clean = elem + elem->length;
-            elem->length += elem_clean->length;
-            /* clean element which is merged */
-            sshmem_ucx_memheap_clean_elem(elem_clean);
-        } else {
-            elem += elem->length;
-        }
-    }
-}
-
-static int
-sshmem_ucx_memheap_free_internal(mca_sshmem_ucx_segment_info_t *info, void *ptr)
-{
-    sshmem_ucx_memheap_allocator_t *allocator = info->ctx;
-    sshmem_ucx_memheap_alloc_elem_t *elem = sshmem_ucx_memheap_get_elem(info, ptr);
-
-    elem->flags |= SSHMEM_UCX_MEMHEAP_FREE_ELEM;
-
-    /* merge free elements */
-    sshmem_ucx_memheap_merge_blocks(allocator);
-
-    return OSHMEM_SUCCESS;
+    return (char*)ptr - (char*)info->segment->super.va_base;
 }
 
 static int sshmem_ucx_memheap_alloc_with_hint(size_t size, long hint, void** ptr)
 {
     mca_sshmem_ucx_segment_info_t *info;
+    sshmem_ucx_shadow_allocator_t *allocator;
+    size_t offset;
+    int res;
 
     if (!(hint & SHMEM_HINT_DEVICE_NIC_MEM)) {
         return OSHMEM_ERR_NOT_IMPLEMENTED;
+    }
+
+    if (!size) {
+        *ptr = NULL;
+        return OSHMEM_SUCCESS;
     }
 
     info = sshmem_ucx_memheap_get_info(hint);
@@ -496,26 +375,48 @@ static int sshmem_ucx_memheap_alloc_with_hint(size_t size, long hint, void** ptr
     }
 
     if (!info->ctx) {
-        info->ctx = sshmem_ucx_memheap_create_allocator(info->segment->seg_size);
+        info->ctx = sshmem_ucx_shadow_create_allocator(info->segment->seg_size);
         if (!info->ctx) {
             return OSHMEM_ERR_OUT_OF_RESOURCE;
         }
     }
 
-    return sshmem_ucx_memheap_alloc_internal(size, info, ptr);
+    allocator = info->ctx;
+
+    res = sshmem_ucx_shadow_alloc(allocator, size, &offset);
+    if (res == OSHMEM_SUCCESS) {
+        *ptr = sshmem_ucx_memheap_offset2ptr(info, offset);
+        assert(*ptr >= info->segment->super.va_base);
+        assert(*ptr < info->segment->super.va_end);
+    }
+
+    return res;
 }
+
+
+static void sshmem_ucx_memheap_realloc_cp(size_t dst_offset, size_t src_offset,
+                                          size_t size, void *arg)
+{
+    mca_sshmem_ucx_segment_info_t *info = arg;
+    long *src = sshmem_ucx_memheap_offset2ptr(info, src_offset);
+    long *dst = sshmem_ucx_memheap_offset2ptr(info, dst_offset);
+    size_t length = ucs_align_up(size, sizeof(*src)) / sizeof(*src);
+    size_t i;
+
+    for (i = 0; i < length; i++, src++, dst++) {
+        *dst = *src;
+    }
+}
+
 
 static int sshmem_ucx_memheap_realloc(size_t size, void* old_ptr, void** new_ptr)
 {
-    size_t length = sshmem_ucx_memheap_get_length(size);
+    sshmem_ucx_shadow_realloc_copy_t cp = {.copy_cb = sshmem_ucx_memheap_realloc_cp};
     map_segment_t *seg;
     mca_sshmem_ucx_segment_info_t *info;
-    sshmem_ucx_memheap_alloc_elem_t *elem;
-    sshmem_ucx_memheap_allocator_t *allocator;
+    sshmem_ucx_shadow_allocator_t *allocator;
+    size_t offset;
     int res;
-    size_t i;
-    long *src;
-    long *dst;
 
     if (!size) {
         return sshmem_ucx_memheap_free(old_ptr);
@@ -537,53 +438,15 @@ static int sshmem_ucx_memheap_realloc(size_t size, void* old_ptr, void** new_ptr
     }
     assert(info->ctx);
 
+    cp.arg = info;
+
     allocator = info->ctx;
-    elem      = sshmem_ucx_memheap_get_elem(info, old_ptr);
-
-    if (length == elem->length) {
-        return OSHMEM_SUCCESS;
-    }
-
-    if (length < elem->length) {
-        /* requested block is shorter than allocated block
-         * then just cut current buffer */
-        sshmem_ucx_memheap_set_elem(elem + length, 
-                                    elem->length - length,
-                                    SSHMEM_UCX_MEMHEAP_FREE_ELEM);
-        elem->length = length;
-        sshmem_ucx_memheap_merge_blocks(info->ctx);
-        return OSHMEM_SUCCESS;
-    }
-
-    assert(length > elem->length);
-
-    /* try to check if next element is free & has enough length */
-    if ((elem + elem->length < &allocator->elem[allocator->length]) && /* non-last element? */
-        sshmem_ucx_memheap_is_free(elem + elem->length)            && /* next is free */
-        (elem[elem->length].length + elem->length >= length))
-    {
-        if (elem[elem->length].length + elem->length > length) {
-            sshmem_ucx_memheap_set_elem(elem + length, elem[elem->length].length +
-                                                       elem->length - length,
-                                                       SSHMEM_UCX_MEMHEAP_FREE_ELEM);
-        }
-
-        sshmem_ucx_memheap_clean_elem(elem + elem->length);
-        elem->length = length;
-        return OSHMEM_SUCCESS;
-    }
-
-    /* ok, we have to allocate new buffer */
-    res = sshmem_ucx_memheap_alloc_internal(size, info, new_ptr);
+    res = sshmem_ucx_shadow_realloc(allocator, size,
+                                    sshmem_ucx_memheap_ptr2offset(info, old_ptr),
+                                    &offset, &cp);
     if (res == OSHMEM_SUCCESS) {
-        /* copy data into new buffer */
-        for (i = 0, src = old_ptr, dst = *new_ptr; i < length; i++, src++, dst++) {
-            *dst = *src;
-        }
+        *new_ptr = sshmem_ucx_memheap_offset2ptr(info, offset);
     }
-
-    sshmem_ucx_memheap_free_internal(info, old_ptr);
-
     return res;
 }
 
@@ -591,6 +454,7 @@ static int sshmem_ucx_memheap_free(void* ptr)
 {
     map_segment_t *seg;
     mca_sshmem_ucx_segment_info_t *info;
+    sshmem_ucx_shadow_allocator_t *allocator;
 
     if (!ptr) {
         return OSHMEM_SUCCESS;
@@ -607,6 +471,8 @@ static int sshmem_ucx_memheap_free(void* ptr)
     }
     assert(info->ctx);
 
-    return sshmem_ucx_memheap_free_internal(info, ptr);
+    allocator = info->ctx;
+
+    return sshmem_ucx_shadow_free(allocator, sshmem_ucx_memheap_ptr2offset(info, ptr));
 }
 

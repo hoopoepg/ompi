@@ -107,6 +107,8 @@ typedef struct mkey_segment {
     void               *rva_base;     /* base va on remote pe */
 } mkey_segment_t;
 
+typedef struct memheap_custom_allocator memheap_custom_allocator_t;
+
 typedef struct map_segment {
     map_base_segment_t   super;
     sshmem_mkey_t      **mkeys_cache;    /* includes remote segment bases in va_base */
@@ -117,8 +119,7 @@ typedef struct map_segment {
     segment_type_t       type;           /* type of the segment */
     void                *context;        /* allocator can use this field to store
                                             its own private data */
-    /* TODO: define simpler object */
-    struct mca_memheap_base_module_t *memheap;  /* memheap interface to manage memory */
+    memheap_custom_allocator_t *memheap; /* memheap interface to manage memory */
 } map_segment_t;
 
 END_C_DECLS
