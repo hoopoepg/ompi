@@ -49,7 +49,6 @@
  * Symmetric heap routines
  */
 #define shmem_malloc                 pshmem_malloc
-#define shmem_malloc_with_hint       pshmem_malloc_with_hint
 #define shmem_calloc                 pshmem_calloc
 #define shmem_align                  pshmem_align
 #define shmem_realloc                pshmem_realloc
@@ -58,6 +57,8 @@
 #define shmemalign                   pshmemalign /* shmem-compat.h */
 #define shrealloc                    pshrealloc /* shmem-compat.h */
 #define shfree                       pshfree /* shmem-compat.h */
+
+#define shmemx_malloc_with_hint      pshmemx_malloc_with_hint
 
 /*
  * Remote pointer operations

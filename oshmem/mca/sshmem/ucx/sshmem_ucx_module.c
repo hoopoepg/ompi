@@ -303,6 +303,9 @@ segment_unlink(map_segment_t *ds_buf)
 
 #if HAVE_UCX_DEVICE_MEM
     info = sshmem_ucx_memheap_lookup_info(ds_buf);
+    opal_output_verbose(3, oshmem_sshmem_base_framework.framework_output,
+                        "segment_unlink() info=%p\n",
+                         info);
     if (info) {
         uct_ib_md_release_device_mem(info->dev_mem);
     }

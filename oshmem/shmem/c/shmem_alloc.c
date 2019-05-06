@@ -20,10 +20,11 @@
 
 #if OSHMEM_PROFILING
 #include "oshmem/include/pshmem.h"
-#pragma weak shmem_malloc           = pshmem_malloc
-#pragma weak shmem_malloc_with_hint = pshmem_malloc_with_hint
-#pragma weak shmem_calloc           = pshmem_calloc
-#pragma weak shmalloc               = pshmalloc
+#include "oshmem/include/pshmemx.h"
+#pragma weak shmem_malloc            = pshmem_malloc
+#pragma weak shmem_calloc            = pshmem_calloc
+#pragma weak shmalloc                = pshmalloc
+#pragma weak shmemx_malloc_with_hint = pshmemx_malloc_with_hint
 #include "oshmem/shmem/c/profile/defines.h"
 #endif
 
@@ -75,7 +76,7 @@ static inline void* _shmalloc(size_t size)
     return pBuff;
 }
 
-void* shmem_malloc_with_hint(size_t size, long hint)
+void* shmemx_malloc_with_hint(size_t size, long hint)
 {
     int rc;
     void* pBuff = NULL;
