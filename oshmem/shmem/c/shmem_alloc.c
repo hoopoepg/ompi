@@ -20,18 +20,11 @@
 
 #if OSHMEM_PROFILING
 #include "oshmem/include/pshmem.h"
-<<<<<<< Updated upstream
 #include "oshmem/include/pshmemx.h"
 #pragma weak shmem_malloc            = pshmem_malloc
 #pragma weak shmem_calloc            = pshmem_calloc
 #pragma weak shmalloc                = pshmalloc
 #pragma weak shmemx_malloc_with_hint = pshmemx_malloc_with_hint
-=======
-#pragma weak shmem_malloc            = pshmem_malloc
-#pragma weak shmemx_malloc_with_hint = pshmemx_malloc_with_hint
-#pragma weak shmem_calloc            = pshmem_calloc
-#pragma weak shmalloc                = pshmalloc
->>>>>>> Stashed changes
 #include "oshmem/shmem/c/profile/defines.h"
 #endif
 

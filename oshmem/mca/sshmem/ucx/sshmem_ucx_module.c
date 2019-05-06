@@ -26,6 +26,7 @@
 #include "sshmem_ucx.h"
 
 #include <ucs/sys/math.h>
+#include <sys/mman.h>
 
 #if HAVE_UCX_DEVICE_MEM
 #include <ucp/core/ucp_resource.h>
@@ -194,26 +195,40 @@ segment_hint_create(map_segment_t *ds_buf, const char *file_name, size_t size,
     }
 
     uct_md = ucp_context_find_tl_md(spml->ucp_context, "mlx5");
-    if (uct_md == NULL) {
-        opal_output_verbose(0, oshmem_sshmem_base_framework.framework_output,
+    if (uct_md != NULL) {
+        /* If found a matching memory domain, allocate device memory on it */
+        length = size;
+        address = NULL;
+        status = uct_ib_md_alloc_device_mem(uct_md, &length, &address,
+                                            UCT_MD_MEM_ACCESS_ALL, "sshmem_seg",
+                                            &dev_mem);
+    } else {
+        /* If not found - consider unsupported */
+        opal_output_verbose(1, oshmem_sshmem_base_framework.framework_output,
                             "ucp_context_find_tl_md() returned NULL\n");
-        return OSHMEM_ERR_NOT_SUPPORTED;
+        status = UCS_ERR_UNSUPPORTED;
     }
 
-    length = size;
-    address = NULL;
-    status = uct_ib_md_alloc_device_mem(uct_md, &length, &address, UCT_MD_MEM_ACCESS_ALL,
-                                        "sshmem_seg", &dev_mem);
-    if (status != UCS_OK) {
-        opal_output_verbose(0, oshmem_sshmem_base_framework.framework_output,
-                            "uct_ib_md_alloc_dm() failed: %s\n",
+    if (status == UCS_OK) {
+        opal_output_verbose(3, oshmem_sshmem_base_framework.framework_output,
+                            "uct_ib_md_alloc_dm() returned address %p\n",
+                            address);
+    } else {
+        /* If could not allocate device memory - fallback to mmap (since some
+         * PEs in the job may succeed and while others failed */
+        opal_output_verbose(1, oshmem_sshmem_base_framework.framework_output,
+                            "uct_ib_md_alloc_dm() failed: %s, using fallback\n",
                             ucs_status_string(status));
-        return OSHMEM_ERR_NOT_SUPPORTED;
-    }
 
-    opal_output_verbose(3, oshmem_sshmem_base_framework.framework_output,
-                        "uct_ib_md_alloc_dm() returned address %p\n",
-                        address);
+        dev_mem = NULL;
+        address = mmap(NULL, size, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANON,
+                       -1, 0);
+        if (address == MAP_FAILED) {
+            opal_output_verbose(0, oshmem_sshmem_base_framework.framework_output,
+                                "mmap(size=%zu) failed: %m\n", size);
+            return OSHMEM_ERR_OUT_OF_RESOURCE;
+        }
+    }
 
     ucp_mem_map_params_t mem_map_params = {
         .field_mask = UCP_MEM_MAP_PARAM_FIELD_ADDRESS |
@@ -226,7 +241,7 @@ segment_hint_create(map_segment_t *ds_buf, const char *file_name, size_t size,
 
     ret = segment_create_internal(ds_buf, &mem_map_params);
     if (ret == OSHMEM_SUCCESS) {
-        ds_buf->memheap                          = &sshmem_ucx_allocator;
+        ds_buf->memheap                            = &sshmem_ucx_allocator;
         /* TODO: added lookup of free element, for now only
          * one hint flag is supported, so, element [0] may be used */
         mca_sshmem_ucx_module.seg_info[0].segment  = ds_buf;
@@ -234,9 +249,9 @@ segment_hint_create(map_segment_t *ds_buf, const char *file_name, size_t size,
         mca_sshmem_ucx_module.seg_info[0].dev_mem  = dev_mem;
 
         opal_output_verbose(3, oshmem_sshmem_base_framework.framework_output,
-                            "created DM segment at %p len %zu\n",
+                            "created hint segment at %p len %zu\n",
                             address, size);
-    } else {
+    } else if (dev_mem != NULL) {
         uct_ib_md_release_device_mem(dev_mem);
     }
 
@@ -308,7 +323,11 @@ segment_unlink(map_segment_t *ds_buf)
                          info);
     if (info) {
         sshmem_ucx_shadow_destroy_allocator(info->ctx);
-        uct_ib_md_release_device_mem(info->dev_mem);
+        if (info->dev_mem) {
+            uct_ib_md_release_device_mem(info->dev_mem);
+        } else {
+            munmap(ds_buf->super.va_base, ds_buf->seg_size);
+        }
     }
 #endif
 

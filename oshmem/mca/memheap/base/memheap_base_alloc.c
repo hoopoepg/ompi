@@ -62,7 +62,6 @@ int mca_memheap_base_hint_alloc_init(mca_memheap_map_t *map, size_t size, long h
     map_segment_t *s = &map->mem_segs[map->n_segments];
     seg_filename = oshmem_get_unique_file_name(oshmem_my_proc_id());
     ret = mca_sshmem_segment_hint_create(s, seg_filename, size, hint);
-
     if (OSHMEM_SUCCESS == ret) {
         map->n_segments++;
         MEMHEAP_VERBOSE(1,
@@ -78,13 +77,20 @@ int mca_memheap_base_hint_alloc_init(mca_memheap_map_t *map, size_t size, long h
 
 void mca_memheap_base_alloc_exit(mca_memheap_map_t *map)
 {
-    if (map) {
-        map_segment_t *s = &map->mem_segs[HEAP_SEG_INDEX];
+    map_segment_t *s;
+    int i;
 
+    if (!map) {
+        return;
+    }
+
+    for (i = 0; i < map->n_segments; ++i) {
+        s = &map->mem_segs[i];
         assert(s);
-
-        mca_sshmem_segment_detach(s, NULL);
-        mca_sshmem_unlink(s);
+        if (s->type != MAP_SEGMENT_STATIC) {
+            mca_sshmem_segment_detach(s, NULL);
+            mca_sshmem_unlink(s);
+        }
     }
 }
 

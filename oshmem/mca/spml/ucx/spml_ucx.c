@@ -738,6 +738,8 @@ int mca_spml_ucx_fence(shmem_ctx_t ctx)
     ucs_status_t err;
     mca_spml_ucx_ctx_t *ucx_ctx = (mca_spml_ucx_ctx_t *)ctx;
 
+    opal_atomic_wmb();
+
     err = ucp_worker_fence(ucx_ctx->ucp_worker);
     if (UCS_OK != err) {
          SPML_UCX_ERROR("fence failed: %s", ucs_status_string(err));
@@ -751,6 +753,8 @@ int mca_spml_ucx_quiet(shmem_ctx_t ctx)
 {
     int ret;
     mca_spml_ucx_ctx_t *ucx_ctx = (mca_spml_ucx_ctx_t *)ctx;
+
+    opal_atomic_wmb();
 
     ret = opal_common_ucx_worker_flush(ucx_ctx->ucp_worker);
     if (OMPI_SUCCESS != ret) {
