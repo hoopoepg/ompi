@@ -49,7 +49,7 @@ int mca_memheap_base_static_init(mca_memheap_map_t *map)
     int ret = OSHMEM_SUCCESS;
 
     assert(map);
-    assert(SYMB_SEG_INDEX <= map->n_segments);
+    assert(MCA_MEMHEAP_SEG_COUNT <= map->n_segments);
 
     ret = _load_segments();
 

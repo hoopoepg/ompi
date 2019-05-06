@@ -43,8 +43,7 @@ extern int mca_memheap_base_key_exchange;
 
 #define MCA_MEMHEAP_MAX_SEGMENTS    8
 #define HEAP_SEG_INDEX  0
-#define SYMB_SEG_INDEX  1
-#define MCA_MEMHEAP_SEG_COUNT  (SYMB_SEG_INDEX+1)
+#define MCA_MEMHEAP_SEG_COUNT  (HEAP_SEG_INDEX+1)
 
 #define MEMHEAP_SEG_INVALID  0xFFFF
 
@@ -212,7 +211,7 @@ static inline map_base_segment_t *map_segment_find_va(map_base_segment_t *segs, 
         rseg = (map_base_segment_t *)((char *)segs + elem_size * i);
         if (OPAL_LIKELY(map_segment_is_va_in(rseg, va))) {
             return rseg;
-        } 
+        }
     }
 
     return NULL;
@@ -222,21 +221,14 @@ void mkey_segment_init(mkey_segment_t *seg, sshmem_mkey_t *mkey, uint32_t segno)
 
 static inline map_segment_t *memheap_find_va(void* va)
 {
-    map_segment_t *s;
+    map_segment_t *s = NULL;
+    int i;
 
-    /* most probably there will be only two segments: heap and global data */
-    if (OPAL_LIKELY(memheap_is_va_in_segment(va, SYMB_SEG_INDEX))) {
-        s = &memheap_map->mem_segs[SYMB_SEG_INDEX];
-    } else if (memheap_is_va_in_segment(va, HEAP_SEG_INDEX)) {
-        s = &memheap_map->mem_segs[HEAP_SEG_INDEX];
-    } else if (memheap_map->n_segments >= MCA_MEMHEAP_SEG_COUNT) {
-        s = bsearch(va,
-                    &memheap_map->mem_segs[MCA_MEMHEAP_SEG_COUNT],
-                    memheap_map->n_segments - MCA_MEMHEAP_SEG_COUNT,
-                    sizeof(*s),
-                    mca_memheap_seg_cmp);
-    } else {
-        s = NULL;
+    for (i = 0; i < memheap_map->n_segments; i++) {
+        if (memheap_is_va_in_segment(va, i)) {
+            s = &memheap_map->mem_segs[i];
+            break;
+        }
     }
 
 #if MEMHEAP_BASE_DEBUG == 1

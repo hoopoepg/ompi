@@ -53,7 +53,7 @@ int mca_memheap_base_hint_alloc_init(mca_memheap_map_t *map, size_t size, long h
     char * seg_filename = NULL;
 
     assert(map);
-    assert(SYMB_SEG_INDEX <= map->n_segments);
+    assert(MCA_MEMHEAP_SEG_COUNT <= map->n_segments);
 
     if (!size) {
         return OSHMEM_SUCCESS;
@@ -100,7 +100,7 @@ int mca_memheap_base_alloc_with_hint(size_t size, long hint, void** ptr)
     int ret;
     map_segment_t *s;
 
-    for (i = SYMB_SEG_INDEX; i < mca_memheap_base_map.n_segments; i++) {
+    for (i = MCA_MEMHEAP_SEG_COUNT; i < mca_memheap_base_map.n_segments; i++) {
         s = &mca_memheap_base_map.mem_segs[i];
         if (s->memheap && s->memheap->memheap_alloc_with_hint) {
             ret = s->memheap->memheap_alloc_with_hint(size, hint, ptr);
