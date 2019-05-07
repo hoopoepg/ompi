@@ -59,6 +59,11 @@ static inline void _shfree(void* ptr)
 
     if (ptr) {
         s = memheap_find_va(ptr);
+    } else {
+        s = NULL;
+    }
+
+    if (s && s->memheap && s->memheap->memheap_free) {
         rc = s->memheap->memheap_free(ptr);
     } else {
         rc = MCA_MEMHEAP_CALL(free(ptr));

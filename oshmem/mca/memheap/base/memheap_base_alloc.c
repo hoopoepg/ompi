@@ -18,8 +18,6 @@
 #include "oshmem/mca/memheap/memheap.h"
 #include "oshmem/mca/memheap/base/base.h"
 
-static memheap_custom_allocator_t mca_memheap_allocator = {0};
-
 int mca_memheap_base_alloc_init(mca_memheap_map_t *map, size_t size)
 {
     int ret = OSHMEM_SUCCESS;
@@ -34,9 +32,6 @@ int mca_memheap_base_alloc_init(mca_memheap_map_t *map, size_t size)
 
     if (OSHMEM_SUCCESS == ret) {
         map->n_segments++;
-        mca_memheap_allocator.memheap_realloc = mca_memheap.memheap_realloc;
-        mca_memheap_allocator.memheap_free    = mca_memheap.memheap_free;
-        s->memheap                            = &mca_memheap_allocator;
         MEMHEAP_VERBOSE(1,
                         "Memheap alloc memory: %llu byte(s), %d segments by method: %d",
                         (unsigned long long)size, map->n_segments, s->type);

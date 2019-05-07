@@ -51,6 +51,11 @@ static inline void* _shrealloc(void *ptr, size_t size)
 
     if (ptr) {
         s = memheap_find_va(ptr);
+    } else {
+        s = NULL;
+    }
+
+    if (s && s->memheap && s->memheap->memheap_realloc) {
         rc = s->memheap->memheap_realloc(size, ptr, &pBuff);
     } else {
         rc = MCA_MEMHEAP_CALL(realloc(size, ptr, &pBuff));
