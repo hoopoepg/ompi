@@ -32,6 +32,9 @@ AC_DEFUN([OMPI_CHECK_UCX],[
 				       [Search for Unified Communication X libraries in DIR])])
 	   OPAL_CHECK_WITHDIR([ucx-libdir], [$with_ucx_libdir], [libucp.*])
 
+	   AC_MSG_NOTICE([with_ucx=$with_ucx])
+	   AC_MSG_NOTICE([with_ucx_libdir=$with_ucx_libdir])
+
 	   AS_IF([test "$with_ucx" != "no"],
                  [AS_IF([test -n "$with_ucx" && test "$with_ucx" != "yes"],
                         [ompi_check_ucx_dir="$with_ucx"],
@@ -40,6 +43,7 @@ AC_DEFUN([OMPI_CHECK_UCX],[
                                               AS_IF([test "$ompi_check_ucx_dir" = "/usr"],
                                                     [ompi_check_ucx_dir=])],
                                              [true])])
+                  AC_MSG_NOTICE([ompi_check_ucx_dir=$ompi_check_ucx_dir])
                   ompi_check_ucx_happy="no"
                   AS_IF([test -z "$ompi_check_ucx_dir"],
                         [OPAL_CHECK_PACKAGE([ompi_check_ucx],
@@ -70,6 +74,7 @@ AC_DEFUN([OMPI_CHECK_UCX],[
                                       [ompi_check_ucx_libdir=$ompi_check_ucx_dir/lib64],
                                       [ompi_check_ucx_libdir=$ompi_check_ucx_dir/lib])])
 
+					     AC_MSG_NOTICE([ompi_check_ucx_libdir=$ompi_check_ucx_libdir])
                          ompi_check_ucx_$1_save_CPPFLAGS="$CPPFLAGS"
                          ompi_check_ucx_$1_save_LDFLAGS="$LDFLAGS"
                          ompi_check_ucx_$1_save_LIBS="$LIBS"
